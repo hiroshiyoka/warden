@@ -1,0 +1,55 @@
+name: ci
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+      # RUSTSEC-2023-0071 (rsa 0.9.10, no fixed release): lockfile-only via
+      # sqlx-macros -> sqlx-mysql for compile-time query checking; mysql driver
+      # is not enabled, so rsa is never shipped. Justified in deny.toml.
+      - name: cargo audit
+        run: cargo audit --ignore RUSTSEC-2023-0071
+      - name: cargo deny check
+        run: cargo deny check
+
+  build-test:
+    runs-on: ubuntu-latest
+    needs: security
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: warden_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run migrations
+        run: |
+          cargo install sqlx-cli --no-default-features --features postgres,rustls
+          sqlx migrate run --source warden-api/migrations
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/warden_test
+      - name: cargo test
+        run: cargo test --workspace
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/warden_test
+      - name: cargo build --release
+        run: cargo build --release --workspace
