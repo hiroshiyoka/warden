@@ -1,9 +1,5 @@
-mod auth;
-mod db;
-mod error;
-mod routes;
-
 use tracing_subscriber::EnvFilter;
+use warden_api::{db, routes};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
