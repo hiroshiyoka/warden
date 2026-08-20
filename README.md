@@ -40,3 +40,26 @@ Podman is used instead of Docker specifically for its rootless, daemonless model
 ## RLS note
 
 Tenant-scoped tables enable Row-Level Security with a policy that matches `app.current_tenant_id` (a per-connection GUC). Phase 1 will set this via `SET LOCAL` inside each authenticated request's transaction. Until then, unauthenticated queries against RLS tables fail closed.
+
+## Secrets (`sops` + `age`)
+
+Any secret that can't be a runtime environment variable lives in `secrets/` encrypted with [sops](https://github.com/getsops/sops) using an [age](https://github.com/FiloSottile/age) keypair. Only `*.enc.yaml` files are committed; the plaintext forms are gitignored (`secrets/*.yaml`).
+
+### First-time setup for a contributor
+
+1. Install `sops` and `age` (e.g. `winget install SecretsOPerationS.SOPS FiloSottile.age`).
+2. Generate your own keypair (Windows: sops reads keys from `%APPDATA%\sops\age\keys.txt`; Linux: `~/.config/sops/age/keys.txt` — copy the key wherever your platform expects it):
+   ```bash
+   age-keygen -o ~/.config/sops/age/keys.txt    # Unix
+   # age-keygen -o $env:APPDATA\sops\age\keys.txt   # Windows
+   ```
+3. Add your public key (`age1...`) to the `age:` list in `secrets/.sops.yaml` so files are encrypted for you too.
+
+### Working with secrets
+
+```bash
+sops --decrypt secrets/example.enc.yaml                      # view
+sops --encrypt --output secrets/example.enc.yaml secrets/<name>.enc.yaml   # write
+```
+
+The private key never enters the repository — keep it in the location above and back it up elsewhere. CI runs `gitleaks` on every push and fails the build if an unencrypted secret pattern (AWS keys, private key headers, etc.) is committed.
