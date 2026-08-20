@@ -1,3 +1,5 @@
+mod common;
+
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 async fn make_pool() -> PgPool {
@@ -13,10 +15,7 @@ async fn make_pool() -> PgPool {
 #[tokio::test]
 async fn rls_isolates_users_per_tenant() {
     let admin = make_pool().await;
-    sqlx::migrate!("./migrations")
-        .run(&admin)
-        .await
-        .expect("migrations failed");
+    common::run_migrations(&admin).await;
 
     sqlx::query("DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'warden_rls_test') THEN CREATE ROLE warden_rls_test LOGIN; END IF; END $$")
         .execute(&admin)
