@@ -3,8 +3,8 @@ mod common;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 async fn make_pool() -> PgPool {
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
     PgPoolOptions::new()
         .max_connections(1)
         .connect(&url)
@@ -65,7 +65,10 @@ async fn rls_isolates_users_per_tenant() {
         .execute(&mut *tx)
         .await
         .expect("rollback to savepoint");
-    assert!(no_context.is_err(), "queries without a tenant context must fail");
+    assert!(
+        no_context.is_err(),
+        "queries without a tenant context must fail"
+    );
 
     sqlx::query("SELECT set_config('app.current_tenant_id', $1, true)")
         .bind(tenant_a.to_string())
@@ -79,11 +82,10 @@ async fn rls_isolates_users_per_tenant() {
         .await
         .expect("insert user a");
 
-    let visible_a: Vec<(uuid::Uuid, String)> =
-        sqlx::query_as("SELECT id, email FROM users")
-            .fetch_all(&mut *tx)
-            .await
-            .expect("query as tenant a");
+    let visible_a: Vec<(uuid::Uuid, String)> = sqlx::query_as("SELECT id, email FROM users")
+        .fetch_all(&mut *tx)
+        .await
+        .expect("query as tenant a");
     assert_eq!(visible_a.len(), 1, "tenant a must see exactly its own user");
     assert_eq!(visible_a[0].1, "a@example.com");
 
@@ -91,15 +93,19 @@ async fn rls_isolates_users_per_tenant() {
         .execute(&mut *tx)
         .await
         .expect("savepoint");
-    let cross_insert = sqlx::query("INSERT INTO users (tenant_id, email) VALUES ($1, 'x@example.com')")
-        .bind(tenant_b)
-        .execute(&mut *tx)
-        .await;
+    let cross_insert =
+        sqlx::query("INSERT INTO users (tenant_id, email) VALUES ($1, 'x@example.com')")
+            .bind(tenant_b)
+            .execute(&mut *tx)
+            .await;
     sqlx::query("ROLLBACK TO SAVEPOINT before_cross_insert")
         .execute(&mut *tx)
         .await
         .expect("rollback to savepoint");
-    assert!(cross_insert.is_err(), "tenant a must not be able to insert tenant b data");
+    assert!(
+        cross_insert.is_err(),
+        "tenant a must not be able to insert tenant b data"
+    );
 
     sqlx::query("SELECT set_config('app.current_tenant_id', $1, true)")
         .bind(tenant_b.to_string())
@@ -113,11 +119,10 @@ async fn rls_isolates_users_per_tenant() {
         .await
         .expect("insert user b");
 
-    let visible_b: Vec<(uuid::Uuid, String)> =
-        sqlx::query_as("SELECT id, email FROM users")
-            .fetch_all(&mut *tx)
-            .await
-            .expect("query as tenant b");
+    let visible_b: Vec<(uuid::Uuid, String)> = sqlx::query_as("SELECT id, email FROM users")
+        .fetch_all(&mut *tx)
+        .await
+        .expect("query as tenant b");
     assert_eq!(visible_b.len(), 1, "tenant b must see exactly its own user");
     assert_eq!(visible_b[0].1, "b@example.com");
 

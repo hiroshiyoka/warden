@@ -1,11 +1,11 @@
 mod common;
 
-use warden_api::audit::record_event;
 use sqlx::{postgres::PgPoolOptions, PgPool};
+use warden_api::audit::record_event;
 
 async fn make_pool() -> PgPool {
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
     PgPoolOptions::new()
         .max_connections(1)
         .connect(&url)
