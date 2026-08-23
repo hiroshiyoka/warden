@@ -1,0 +1,13 @@
+[package]
+name = "warden-sandbox"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+async-trait.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
