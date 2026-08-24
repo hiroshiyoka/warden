@@ -1964,6 +1964,7 @@ name = "warden-sandbox"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "sha2",
  "thiserror 1.0.69",
  "tokio",
  "uuid",
