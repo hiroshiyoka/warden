@@ -1,5 +1,5 @@
 use tracing_subscriber::EnvFilter;
-use warden_api::{db, routes};
+use warden_api::{db, routes, AppState};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -10,7 +10,7 @@ async fn main() -> anyhow::Result<()> {
     let pool = db::connect().await?;
     sqlx::migrate!("./migrations").run(&pool).await?;
 
-    let app = routes::router(pool);
+    let app = routes::router_with_state(AppState::new(pool));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
     tracing::info!("warden-api listening on :8080");
