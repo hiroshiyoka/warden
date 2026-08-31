@@ -9,7 +9,7 @@ pub enum RuntimeError {
     LimitExceeded(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct ExecResult {
     pub exit_code: i32,
     pub stdout: String,
