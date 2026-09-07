@@ -63,3 +63,42 @@ sops --encrypt --output secrets/example.enc.yaml secrets/<name>.enc.yaml   # wri
 ```
 
 The private key never enters the repository — keep it in the location above and back it up elsewhere. CI runs `gitleaks` on every push and fails the build if an unencrypted secret pattern (AWS keys, private key headers, etc.) is committed.
+
+## Phase 2A — sandbox foundations without a real runtime
+
+Phase 2A is the slice of Phase 2 that does not require a Linux host with `/dev/kvm` access. It ships the schema, permission-gated API, quota enforcement, audit logging, config validation, and a minimal dashboard — and stops there. The Firecracker runtime is intentionally absent: nothing boots, no kernel is loaded, no VM is created. Phase 2B is the runtime implementation, and it cannot start until a Linux/KVM host is verified.
+
+### What is real today
+
+- `sandboxes` and `egress_rules` tables exist via migrations `0006` and `0007` with Row-Level Security enabled in the same migration that created them.
+- `POST /sandboxes` enforces permission, then per-tenant quota (`MAX_ACTIVE_SANDBOXES_PER_TENANT = 5`), and only then attempts to call the runtime. Quota rejection (`429`) and permission rejection (`403`) happen *before* any runtime call.
+- `warden-sandbox` defines the `SandboxRuntime` trait and ships exactly one implementation, `UnimplementedRuntime`, which returns `Err(RuntimeError::NotImplemented)` for `boot`, `exec`, and `destroy`. No method can return `Ok(_)` in this phase.
+- `ResourceLimits::validate()` and `verify_image_checksum()` are unit-tested for valid and invalid inputs. None of these tests touch a real VM.
+- Every request that the API would have booted is recorded with `status = 'pending_runtime'` and an entry in `audit_log` (`sandbox_create_pending_runtime`). The request is real; the boot is not.
+- The API surfaces the runtime's honest failure as `503 Service Unavailable` with body `{"error": "sandbox runtime not yet available"}`.
+
+### What the dashboard shows
+
+`apps/web/` is a Vite + React + TanStack Query client that talks to the real API from Task 4. It contains exactly two screens:
+
+- `SandboxList` — renders `GET /sandboxes` and labels any `pending_runtime` row as "Pending runtime — no execution backend yet". The status is not relabelled to something that sounds more finished than it is.
+- `SandboxCreate` — submits `POST /sandboxes` and renders the `503` response as "Sandbox request recorded. Execution runtime isn't deployed yet." There is no fake spinner, no auto-retry, no optimistic success state.
+
+No `SandboxLogs` or `SandboxDestroy` screens are built. There is nothing real for them to show, and a UI that pretends otherwise would be worse than no UI.
+
+### Local dev — API + dashboard
+
+```bash
+# Terminal 1: API
+cargo run -p warden-api
+
+# Terminal 2: dashboard (proxies /api to the running API)
+cd apps/web
+cp .env.example .env
+npm install
+npm run dev
+```
+
+### Phase 2B gate
+
+Phase 2B (Firecracker runtime, cgroup limits, vsock exec, default-deny networking) only starts after a dated, real `/dev/kvm` check on a Linux host has been recorded in `docs/phase2-host-verification.md`. Without that evidence, no microVM code lands in this repository.
